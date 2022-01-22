@@ -5,7 +5,7 @@
 ---
 
 
-# Bean 등록 시, 타입 중복 문제를 해결하는 방법
+# 의존 관계 주입 시, 타입 중복 문제를 해결하는 방법
 
 
 
@@ -44,13 +44,14 @@ but found 2: fixDiscountPolicy,rateDiscountPolicy
 오류메시지는 하나의 Bean을 기대했으나, `fixDiscountPolicy`와 `rateDiscountPolicy` 2개의 Bean을 발견했다고 알려준다. 이때, 특정 클래스를 의존 관계로 주입하기 위해 하위 타입을 지정할 수도 있을 것이다. 하지만, 하위 타입으로 지정하는 것은 DIP를 위배하고 유연성도 떨어진다. 또한, 이름만 다르고 완전히 동일한 타입의 스프링 Bean 2개가 있을 때는 해결책이 될 수 없다.
 
 
-## 2. 중복된 타입 문제를 해결하는 3가지 방법
+## 2. 중복된 타입 문제를 해결하는 4가지 방법
 
-여러개의 Bean이 등록되었을 때, 해결할 수 있는 3가지 방법이 있다.
+여러개의 Bean이 등록되었을 때, 해결할 수 있는 4가지 방법이 있다.
 
 - @Autowired 필드 명 매칭 
 - @Qualifier -> @Qualifier끼리 매칭 ->  빈 이름 매칭 
 - @Primary 사용 
+- @Annotation 직접 만들어 사용하기
 
 ### 2-1. @Autowired - 필드명 매칭
 
@@ -120,12 +121,54 @@ public class FixDiscountPolicy implements DiscountPolicy {}
 `@Primary`는 범용적이며, 디폴트값의 성격을 갖는다. 반면, `@Qualifier`는 세부 옵션의 성격을 갖는다. `@Primary`와 `@Qualifier`가 둘 다 존재할 경우 `@Qualifier`에 우선권이 있다. **스프링은 자동보다는 수동이, 넒은 범위의 선택권 보다는 좁은 범위의 선택권이 우선 순위가 높다.** 따라서, `@Qualifier`의 우선권이 높다.
 
 
-@Primary 는 기본값 처럼 동작하는 것이고, @Qualifier 는 매우 상세하게 동작한다. 이런 경우 어떤 것이 우선권을 가져갈까? 스프링은 자동보다는 수동이, 넒은 범위의 선택권 보다는 좁은 범위의 선택권이 우선 순위가 높다. 따라서 여기서도 @Qualifier 가 우선권이 높다 
+### 2-4. @Annotation을 직접 만들어 사용
+
+직접 `@Annotation`을 만들어 중복 타입 문제를 해결할 수도 있다. 특히, 두번째 방법으로 언급했던 `@Qualifier("등록된 Bean의 이름")` 방식의 소소한 단점을 보완한다. `@Qualifier`에 추가하는 Bean의 이름은 문자열로 인식된다. 문자열은 컴파일 단계에서 에러 확인이 어렵다. 하지만 `@Annotation`을 직접 만들게 되면, 컴파일 단계에서 오탈자로 인한 에러를 확인할 수 있다.
+
+`@Annotation`을 만드는 방법은 아래와 같이 새로운 애노테이션을 생성하고, 필요한 애노테이션을 선언한다. 애노테이션은 상속이라는 개념이 없다. 여러 애노테이션을 모아서 사용하는 기능은 스프링이 지원한다.
+
+
+```java
+@Target({ElementType.FIELD, ElementType.METHOD, ElementType.PARAMETER, ElementType.TYPE, ElementType.ANNOTATION_TYPE})
+@Retention(RetentionPolicy.RUNTIME)
+@Inherited
+@Documented
+@Qualifier("mainDiscountPolicy")
+public @interface MainDiscountPolicy {
+}
+```
+
+사용 방법은 다른 애노테이션과 동일하다. 아래와 같이 클래스 선언 코드 위에 애노테이션을 선언하여 사용할 수 있다.
+
+```java
+@Component
+@MainDiscountPolicy
+public class RateDiscountPolicy implements DiscountPolicy {}
+```
+
+아래와 같이 의존 관계 자동 주입 시에도 `@Qulifier`와 동일한 방법으로 사용할 수 있다.
+
+```java
+//생성자 자동 주입
+@Autowired
+public OrderServiceImpl(MemberRepository memberRepository, @MainDiscountPolicy DiscountPolicy discountPolicy) {
+    this.memberRepository = memberRepository;
+    this.discountPolicy = discountPolicy;
+}
+
+//수정자 자동 주입 
+@Autowired 
+public DiscountPolicy setDiscountPolicy(@MainDiscountPolicy DiscountPolicy discountPolicy) {
+    return discountPolicy;
+}
+```
+
+한가지 유의할 점은 무분별한 사용을 지양해야 한다는 점이다. 애노테이션을 직접 만들어 사용하면 타입 중복을 방지할 뿐만 아니라, 나만의 애노테이션을 만들어 쓴다는 점에서 애정이 생긴다. 하지만 스프링이 제공하는 기능을 뚜렷한 목적 없이 무분별하게 재정의하는 것은 여러 개발자가 함께 유지보수하는 과정에 혼란을 키울 수 있음므로, 특별한 이유가 없다면 사용을 지양하는 것이 좋다. 
 
 
 ---
 
 ## 3. 요약
-- 의존 관계 주입 시, 타입의 중복 문제를 해결하는 방법은 3가지가 있다.
+- 의존 관계 주입 시, 타입의 중복 문제를 해결하는 방법은 4가지가 있다.
 - 일반적인 우선순위는 `@Primary`로 부여하고, 세부 설정은 `@Qualifier`를 이용하면 좋다.
 - `@Primary`와 `@Qualifier`가 모두 사용된 경우, `@Qualifier`에 우선권이 있다.
