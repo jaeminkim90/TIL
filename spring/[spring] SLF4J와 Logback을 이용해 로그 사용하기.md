@@ -139,3 +139,5 @@ logging.level.hello.springmvc=debug
 	  
 스프링 부트가 제공하는 로그 기능은 아래 링크에서 확인할 수 있다.
 	- https://docs.spring.io/spring-boot/docs/current/reference/html/spring-boot- features.html#boot-features-logging
+
+    
